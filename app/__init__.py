@@ -1,30 +1,16 @@
-# This file contains the application factory.
+# __init__.py
 
-from flask import Flask, g
+from flask import Flask
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
 import os
-import psycopg2
 from dotenv import load_dotenv
 
-# Load environment variables from the .env file
+# Load environment variables
 load_dotenv()
 
-def get_db():
-    """
-    Opens a new database connection if there is none yet for the
-    current application context.
-    """
-    if 'db' not in g:
-        g.db = psycopg2.connect(os.environ.get('DATABASE_URL'))
-    return g.db
-
-def close_db(e=None):
-    """
-    Closes the database connection at the end of the request.
-    """
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
+# Initialize SQLAlchemy
+db = SQLAlchemy()
 
 def create_app():
     """
@@ -32,18 +18,23 @@ def create_app():
     """
     app = Flask(__name__)
     
-    # Set secret key for the app
+    # Configure the app
     app.config['SECRET_KEY'] = os.environ.get('JWT_SECRET')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+    # Initialize extensions
+    db.init_app(app)
     
-    # Enable CORS to allow your Next.js frontend (e.g., from http://localhost:3000)
-    # to make requests to this Flask backend.
+    # Enable CORS
     CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-    # Register the function to close the database connection when the app context is torn down
-    app.teardown_appcontext(close_db)
-
-    # Import and register the routes from routes.py
-    from . import routes
-    app.register_blueprint(routes.api_bp)
+    with app.app_context():
+        # Import and register blueprints
+        from . import routes
+        app.register_blueprint(routes.api_bp)
+        
+        # You can create the database tables if they don't exist
+        # db.create_all() 
 
     return app
